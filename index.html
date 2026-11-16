@@ -1,0 +1,748 @@
+<!DOCTYPE html>
+<html lang="en" class="h-full">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Thesis Chapter Splitter & Packager</title>
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Inter Font -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <!-- FontAwesome Icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <!-- pdf-lib for client-side PDF manipulation -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf-lib/1.17.1/pdf-lib.min.js"></script>
+    <!-- PDF.js for rendering PDF page previews -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+    <script>
+        pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+    </script>
+    <!-- JSZip for creating zip archives -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+    <!-- FileSaver.js for triggering browser file downloads -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/FileSaver.js/2.0.5/FileSaver.min.js"></script>
+    <style>
+        body { font-family: 'Inter', sans-serif; }
+    </style>
+</head>
+<body class="bg-slate-50 text-slate-800 h-full flex flex-col antialiased">
+
+    <!-- Header -->
+    <header class="bg-indigo-600 text-white shadow-md">
+        <div class="max-w-7xl mx-auto px-4 py-4 sm:px-6 lg:px-8 flex items-center justify-between">
+            <div class="flex items-center space-x-3">
+                <div class="bg-indigo-700 p-2.5 rounded-xl shadow-inner">
+                    <i class="fa-solid fa-file-pdf text-2xl text-indigo-200"></i>
+                </div>
+                <div>
+                    <h1 class="text-xl font-bold tracking-tight">Thesis Chapter Splitter</h1>
+                    <p class="text-xs text-indigo-200">Multi-range chapter extraction with robust error handling</p>
+                </div>
+            </div>
+            <div class="hidden sm:flex items-center space-x-2 text-xs bg-indigo-700/50 px-3 py-1.5 rounded-lg border border-indigo-500/30">
+                <i class="fa-solid fa-shield-halved text-emerald-300"></i>
+                <span>100% Client-Side & Secure</span>
+            </div>
+        </div>
+    </header>
+
+    <!-- Main Container -->
+    <main class="flex-grow max-w-7xl w-full mx-auto px-4 py-6 sm:px-6 lg:px-8 flex flex-col gap-6">
+
+        <!-- Step 1: Upload Section -->
+        <section id="upload-section" class="bg-white rounded-2xl shadow-sm border border-slate-200 p-6 transition-all">
+            <div class="flex items-center justify-between mb-4">
+                <h2 class="text-base font-semibold text-slate-900 flex items-center gap-2">
+                    <span class="flex items-center justify-center w-6 h-6 rounded-full bg-indigo-100 text-indigo-700 text-xs font-bold">1</span>
+                    Upload Thesis PDF
+                </h2>
+                <span id="file-status-badge" class="hidden text-xs px-2.5 py-1 rounded-full font-medium bg-emerald-50 text-emerald-700 border border-emerald-200">
+                    <i class="fa-solid fa-circle-check mr-1"></i> Loaded Successfully
+                </span>
+            </div>
+
+            <div id="dropzone" class="border-2 border-dashed border-slate-300 hover:border-indigo-500 rounded-xl p-8 text-center cursor-pointer bg-slate-50 hover:bg-indigo-50/30 transition-all group">
+                <input type="file" id="pdf-file-input" accept="application/pdf" class="hidden">
+                <div class="flex flex-col items-center pointer-events-none">
+                    <div class="w-14 h-14 rounded-2xl bg-indigo-50 text-indigo-600 flex items-center justify-center mb-3 group-hover:scale-105 transition-transform shadow-sm">
+                        <i class="fa-solid fa-cloud-arrow-up text-2xl"></i>
+                    </div>
+                    <p class="text-sm font-medium text-slate-700 mb-1">Drag & drop your student thesis PDF here, or <span class="text-indigo-600 underline">browse files</span></p>
+                    <p class="text-xs text-slate-400">Supports standard student thesis document formats (PDF)</p>
+                </div>
+            </div>
+
+            <div id="file-info" class="hidden mt-4 p-4 bg-slate-50 rounded-xl border border-slate-200 flex items-center justify-between">
+                <div class="flex items-center space-x-3 truncate">
+                    <div class="w-10 h-10 rounded-lg bg-red-100 text-red-600 flex items-center justify-center font-bold text-sm shrink-0">
+                        PDF
+                    </div>
+                    <div class="truncate">
+                        <p id="file-name" class="text-sm font-semibold text-slate-800 truncate"></p>
+                        <p id="file-meta" class="text-xs text-slate-500"></p>
+                    </div>
+                </div>
+                <div class="flex items-center space-x-2">
+                    <button id="preview-toggle-btn" class="text-xs bg-indigo-50 hover:bg-indigo-100 text-indigo-700 font-medium px-3 py-1.5 rounded-lg transition-colors flex items-center gap-1.5">
+                        <i class="fa-solid fa-eye"></i> View Pages
+                    </button>
+                    <button id="change-file-btn" class="text-xs text-slate-600 hover:text-slate-800 font-medium px-3 py-1.5 rounded-lg hover:bg-slate-200/60 transition-colors">
+                        Change
+                    </button>
+                </div>
+            </div>
+        </section>
+
+        <!-- PDF Page Viewer Modal / Drawer -->
+        <section id="preview-section" class="bg-white rounded-2xl shadow-sm border border-slate-200 p-6 hidden">
+            <div class="flex items-center justify-between pb-4 border-b border-slate-100 mb-4">
+                <h3 class="text-sm font-semibold text-slate-900 flex items-center gap-2">
+                    <i class="fa-solid fa-book-open text-indigo-600"></i> PDF Page Reference Viewer (<span id="viewer-total-pages">0</span> Pages)
+                </h3>
+                <button id="close-preview-btn" class="text-slate-400 hover:text-slate-600 text-xs font-medium px-2.5 py-1 rounded-lg bg-slate-100">
+                    <i class="fa-solid fa-xmark mr-1"></i> Close Viewer
+                </button>
+            </div>
+            <div class="grid grid-cols-2 sm:grid-cols-4 md:grid-cols-6 lg:grid-cols-8 gap-3 max-h-96 overflow-y-auto p-2 bg-slate-50 rounded-xl border border-slate-200" id="thumbnails-container">
+                <!-- Dynamically populated page thumbnails -->
+            </div>
+        </section>
+
+        <!-- Step 2: Multi-Range Section Configuration -->
+    <section id="config-section" class="bg-white rounded-2xl shadow-sm border border-slate-200 p-6 opacity-60 pointer-events-none transition-all">
+        <div class="flex flex-col sm:flex-row sm:items-center justify-between pb-4 border-b border-slate-100 gap-3 mb-6">
+            <div>
+                <h2 class="text-base font-semibold text-slate-900 flex items-center gap-2">
+                    <span class="flex items-center justify-center w-6 h-6 rounded-full bg-indigo-100 text-indigo-700 text-xs font-bold">2</span>
+                    Configure File Sections & Multi-Ranges
+                </h2>
+                <p class="text-xs text-slate-500 mt-0.5">Customize file names, add/remove sections, and configure multiple page intervals per section. Total pages: <span id="max-pages-label">?</span></p>
+            </div>
+            <div class="flex items-center gap-2 flex-wrap">
+                <button id="add-section-btn" type="button" class="text-xs bg-indigo-50 hover:bg-indigo-100 text-indigo-700 px-3 py-2 rounded-xl font-medium transition-colors flex items-center gap-1.5">
+                    <i class="fa-solid fa-folder-plus"></i> Add New File Section
+                </button>
+                <button id="auto-distribute-btn" type="button" class="text-xs bg-slate-100 hover:bg-slate-200 text-slate-700 px-3 py-2 rounded-xl font-medium transition-colors flex items-center gap-1.5">
+                    <i class="fa-solid fa-wand-magic-sparkles text-indigo-600"></i> Auto-Spread
+                </button>
+                <button id="reset-ranges-btn" type="button" class="text-xs bg-slate-100 hover:bg-slate-200 text-slate-700 px-3 py-2 rounded-xl font-medium transition-colors">
+                    Reset All
+                </button>
+            </div>
+        </div>
+
+        <!-- Stack of Sections -->
+        <div id="sections-container" class="space-y-4">
+            <!-- Dynamically injected via JavaScript -->
+        </div>
+
+        <!-- Action Footer Inside Config -->
+        <div class="mt-8 pt-6 border-t border-slate-100 flex flex-col sm:flex-row items-center justify-between gap-4">
+            <div class="text-xs text-slate-500 flex items-center gap-1.5">
+                <i class="fa-solid fa-circle-info text-indigo-500"></i>
+                <span>File names and page ranges are fully editable. Each section generates a separate PDF inside the final ZIP.</span>
+            </div>
+            <button id="process-btn" class="w-full sm:w-auto bg-indigo-600 hover:bg-indigo-700 text-white font-medium px-6 py-3 rounded-xl shadow-sm hover:shadow transition-all flex items-center justify-center gap-2 text-sm disabled:opacity-50 disabled:cursor-not-allowed">
+                <i class="fa-solid fa-file-zipper"></i>
+                <span>Split & Merge PDFs to ZIP</span>
+            </button>
+        </div>
+    </section>
+
+</main>
+
+    <!-- Progress Modal / Overlay -->
+    <div id="progress-modal" class="fixed inset-0 bg-slate-900/50 backdrop-blur-sm z-50 hidden flex items-center justify-center p-4">
+        <div class="bg-white rounded-2xl max-w-md w-full p-6 shadow-xl border border-slate-100 text-center">
+            <div class="w-12 h-12 rounded-2xl bg-indigo-50 text-indigo-600 flex items-center justify-center mx-auto mb-4 animate-spin">
+                <i class="fa-solid fa-circle-notch text-xl"></i>
+            </div>
+            <h3 id="modal-title" class="text-base font-semibold text-slate-900 mb-1">Processing Thesis PDF</h3>
+            <p id="modal-desc" class="text-xs text-slate-500 mb-4">Merging multi-range intervals and constructing zip package...</p>
+            <div class="w-full bg-slate-100 rounded-full h-2 overflow-hidden mb-2">
+                <div id="progress-bar" class="bg-indigo-600 h-full transition-all duration-300 w-0"></div>
+            </div>
+            <p id="progress-percent" class="text-xs font-medium text-slate-600">0%</p>
+        </div>
+    </div>
+
+    <!-- Alert Message Modal -->
+    <div id="message-modal" class="fixed inset-0 bg-slate-900/50 backdrop-blur-sm z-50 hidden flex items-center justify-center p-4">
+        <div class="bg-white rounded-2xl max-w-sm w-full p-6 shadow-xl border border-slate-100 text-center">
+            <div id="msg-icon" class="w-12 h-12 rounded-2xl bg-red-50 text-red-600 flex items-center justify-center mx-auto mb-3 text-xl">
+                <i class="fa-solid fa-triangle-exclamation"></i>
+            </div>
+            <h3 id="msg-title" class="text-base font-semibold text-slate-900 mb-1">Notice</h3>
+            <p id="msg-text" class="text-xs text-slate-500 mb-6">Please check your inputs.</p>
+            <button id="msg-ok-btn" class="w-full bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-medium py-2.5 rounded-xl transition-colors">
+                Got it
+            </button>
+        </div>
+    </div>
+
+    <!-- Footer -->
+    <footer class="mt-auto py-4 text-center text-xs text-slate-400 border-t border-slate-200/60 bg-white">
+        Thesis Chapter Splitter & Packager &bull; Robust Client-Side Engine
+    </footer>
+
+    <script>
+        // Define initial default 10 sections matching thesis portal template requirements
+        let currentSectionDefinitions = [
+            { key: "01_title", label: "01_title", desc: "Title Page" },
+            { key: "02_prelim_pages", label: "02_prelim_pages", desc: "Declaration + Dedication + Certificates + Acknowledgement + TOC" },
+            { key: "03_content", label: "03_content", desc: "Table of Contents / Overview Content" },
+            { key: "04_abstract", label: "04_abstract", desc: "Abstract & Synopsis" },
+            { key: "05_chapter_1", label: "05_chapter_1", desc: "Chapter 1: Introduction / Review of Literature" },
+            { key: "06_chapter_2", label: "06_chapter_2", desc: "Chapter 2: Methodology & Research Design" },
+            { key: "07_chapter_3", label: "07_chapter_3", desc: "Chapter 3: Implementation / Analysis" },
+            { key: "08_chapter_4", label: "08_chapter_4", desc: "Chapter 4: Results & Discussion" },
+            { key: "09_chapter_5", label: "09_chapter_5", desc: "Chapter 5: Conclusion & Future Scope" },
+            { key: "10_annexures", label: "10_annexures", desc: "Bibliography + References + Questionnaires + Publications" }
+        ];
+
+        let loadedPdfBytes = null;
+        let pdfDocProxy = null;
+        let pdfjsDoc = null;
+        let totalPdfPages = 0;
+        let originalFileName = "thesis.pdf";
+
+        // DOM Elements
+        const dropzone = document.getElementById('dropzone');
+        const pdfFileInput = document.getElementById('pdf-file-input');
+        const fileInfo = document.getElementById('file-info');
+        const fileNameEl = document.getElementById('file-name');
+        const fileMetaEl = document.getElementById('file-meta');
+        const fileStatusBadge = document.getElementById('file-status-badge');
+        const changeFileBtn = document.getElementById('change-file-btn');
+        const configSection = document.getElementById('config-section');
+        const maxPagesLabel = document.getElementById('max-pages-label');
+        const sectionsContainer = document.getElementById('sections-container');
+        const processBtn = document.getElementById('process-btn');
+        const resetRangesBtn = document.getElementById('reset-ranges-btn');
+        const autoDistributeBtn = document.getElementById('auto-distribute-btn');
+        const addSectionBtn = document.getElementById('add-section-btn');
+        const previewToggleBtn = document.getElementById('preview-toggle-btn');
+        const previewSection = document.getElementById('preview-section');
+        const closePreviewBtn = document.getElementById('close-preview-btn');
+        const thumbnailsContainer = document.getElementById('thumbnails-container');
+        const viewerTotalPages = document.getElementById('viewer-total-pages');
+
+        // Modal Elements
+        const progressModal = document.getElementById('progress-modal');
+        const progressBar = document.getElementById('progress-bar');
+        const progressPercent = document.getElementById('progress-percent');
+        const modalTitle = document.getElementById('modal-title');
+        const modalDesc = document.getElementById('modal-desc');
+
+        const messageModal = document.getElementById('message-modal');
+        const msgTitle = document.getElementById('msg-title');
+        const msgText = document.getElementById('msg-text');
+        const msgOkBtn = document.getElementById('msg-ok-btn');
+        const msgIcon = document.getElementById('msg-icon');
+
+        function showMessage(title, text, isError = true) {
+            msgTitle.textContent = title;
+            msgText.textContent = text;
+            if (isError) {
+                msgIcon.className = "w-12 h-12 rounded-2xl bg-red-50 text-red-600 flex items-center justify-center mx-auto mb-3 text-xl";
+                msgIcon.innerHTML = '<i class="fa-solid fa-triangle-exclamation"></i>';
+            } else {
+                msgIcon.className = "w-12 h-12 rounded-2xl bg-emerald-50 text-emerald-600 flex items-center justify-center mx-auto mb-3 text-xl";
+                msgIcon.innerHTML = '<i class="fa-solid fa-circle-check"></i>';
+            }
+            messageModal.classList.remove('hidden');
+        }
+
+        msgOkBtn.addEventListener('click', () => {
+            messageModal.classList.add('hidden');
+        });
+
+        // Drag and drop event listeners
+        dropzone.addEventListener('click', () => pdfFileInput.click());
+        dropzone.addEventListener('dragover', (e) => {
+            e.preventDefault();
+            dropzone.classList.add('border-indigo-500', 'bg-indigo-50/40');
+        });
+        dropzone.addEventListener('dragleave', () => {
+            dropzone.classList.remove('border-indigo-500', 'bg-indigo-50/40');
+        });
+        dropzone.addEventListener('drop', (e) => {
+            e.preventDefault();
+            dropzone.classList.remove('border-indigo-500', 'bg-indigo-50/40');
+            if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
+                handlePdfFile(e.dataTransfer.files[0]);
+            }
+        });
+
+        pdfFileInput.addEventListener('change', (e) => {
+            if (e.target.files && e.target.files.length > 0) {
+                handlePdfFile(e.target.files[0]);
+            }
+        });
+
+        changeFileBtn.addEventListener('click', () => {
+            pdfFileInput.value = '';
+            loadedPdfBytes = null;
+            pdfDocProxy = null;
+            pdfjsDoc = null;
+            totalPdfPages = 0;
+            fileInfo.classList.add('hidden');
+            dropzone.classList.remove('hidden');
+            fileStatusBadge.classList.add('hidden');
+            configSection.classList.add('opacity-60', 'pointer-events-none');
+            previewSection.classList.add('hidden');
+        });
+
+        previewToggleBtn.addEventListener('click', () => {
+            previewSection.classList.toggle('hidden');
+        });
+
+        closePreviewBtn.addEventListener('click', () => {
+            previewSection.classList.add('hidden');
+        });
+
+        async function handlePdfFile(file) {
+            if (file.type !== 'application/pdf' && !file.name.toLowerCase().endsWith('.pdf')) {
+                showMessage("Invalid File Format", "Please upload a valid PDF document for the student thesis.");
+                return;
+            }
+
+            originalFileName = file.name;
+            const reader = new FileReader();
+            
+            reader.onload = async function(e) {
+                try {
+                    loadedPdfBytes = e.target.result.slice(0);
+                    pdfDocProxy = await PDFLib.PDFDocument.load(loadedPdfBytes, { ignoreEncryption: true });
+                    totalPdfPages = pdfDocProxy.getPageCount();
+
+                    const loadingTask = pdfjsLib.getDocument({ data: loadedPdfBytes.slice(0) });
+                    pdfjsDoc = await loadingTask.promise;
+
+                    fileNameEl.textContent = file.name;
+                    fileMetaEl.textContent = `${(file.size / (1024 * 1024)).toFixed(2)} MB &bull; ${totalPdfPages} Pages`;
+                    viewerTotalPages.textContent = totalPdfPages;
+                    
+                    dropzone.classList.add('hidden');
+                    fileInfo.classList.remove('hidden');
+                    fileStatusBadge.classList.remove('hidden');
+
+                    maxPagesLabel.textContent = totalPdfPages;
+                    configSection.classList.remove('opacity-60', 'pointer-events-none');
+
+                    renderSectionInputs();
+                    renderThumbnails();
+                } catch (err) {
+                    console.error(err);
+                    showMessage("Error Reading PDF", "Could not parse the uploaded PDF file. It may be password-protected or corrupted.");
+                }
+            };
+
+            reader.readAsArrayBuffer(file);
+        }
+
+        async function renderThumbnails() {
+            thumbnailsContainer.innerHTML = '';
+            for (let i = 1; i <= totalPdfPages; i++) {
+                const thumbDiv = document.createElement('div');
+                thumbDiv.className = "flex flex-col items-center bg-white p-2 rounded-lg border border-slate-200 shadow-2xs";
+                
+                const canvas = document.createElement('canvas');
+                canvas.className = "w-full h-auto rounded border border-slate-100 shadow-xs mb-1 bg-slate-100";
+                thumbDiv.appendChild(canvas);
+
+                const label = document.createElement('span');
+                label.className = "text-[10px] font-semibold text-slate-500 font-mono";
+                label.textContent = `P. ${i}`;
+                thumbDiv.appendChild(label);
+
+                thumbnailsContainer.appendChild(thumbDiv);
+
+                try {
+                    const page = await pdfjsDoc.getPage(i);
+                    const viewport = page.getViewport({ scale: 0.25 });
+                    canvas.height = viewport.height;
+                    canvas.width = viewport.width;
+                    const context = canvas.getContext('2d');
+                    await page.render({ canvasContext: context, viewport: viewport }).promise;
+                } catch (err) {
+                    console.error(`Error rendering thumbnail for page ${i}`, err);
+                }
+            }
+        }
+
+        function renderSectionInputs() {
+            sectionsContainer.innerHTML = '';
+            const chunk = Math.max(1, Math.floor(totalPdfPages / currentSectionDefinitions.length));
+
+            currentSectionDefinitions.forEach((sec, idx) => {
+                let defaultStart = (idx * chunk) + 1;
+                let defaultEnd = (idx === currentSectionDefinitions.length - 1) ? totalPdfPages : (defaultStart + chunk - 1);
+                if (defaultStart > totalPdfPages) defaultStart = totalPdfPages;
+                if (defaultEnd > totalPdfPages) defaultEnd = totalPdfPages;
+
+                const card = document.createElement('div');
+                card.className = "bg-slate-50/80 rounded-xl p-4 border border-slate-200/80 hover:border-indigo-200 transition-colors flex flex-col gap-3 section-card";
+                card.dataset.index = idx;
+
+                card.innerHTML = `
+                    <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                        <div class="flex items-center gap-2 flex-1">
+                            <span class="text-xs font-bold text-indigo-700 font-mono bg-indigo-50 px-2.5 py-1 rounded border border-indigo-100 shrink-0">File #${idx + 1}</span>
+                            <input type="text" value="${sec.label}" placeholder="Enter file name (e.g. 01_title)" 
+                                class="section-name-input flex-1 bg-white border border-slate-300 rounded-lg px-3 py-1.5 text-xs font-semibold text-slate-800 focus:ring-2 focus:ring-indigo-500 focus:outline-none">
+                        </div>
+                        <div class="flex items-center gap-2">
+                            <button type="button" class="add-range-btn text-xs bg-indigo-50 hover:bg-indigo-100 text-indigo-700 font-medium px-3 py-1.5 rounded-lg transition-colors flex items-center gap-1.5">
+                                <i class="fa-solid fa-plus text-[10px]"></i> Add Interval
+                            </button>
+                            <button type="button" class="remove-section-btn text-slate-400 hover:text-red-500 bg-white border border-slate-200 p-1.5 rounded-lg transition-colors" title="Delete File Section">
+                                <i class="fa-solid fa-trash-can text-xs"></i>
+                            </button>
+                        </div>
+                    </div>
+                    <div class="ranges-list space-y-2 pt-2 border-t border-slate-200/60">
+                        <div class="range-row flex items-center gap-3 bg-white p-2.5 rounded-lg border border-slate-200/60 shadow-2xs">
+                            <div class="flex-1 grid grid-cols-2 gap-3">
+                                <div>
+                                    <label class="block text-[10px] font-semibold text-slate-400 uppercase tracking-wider mb-1">Start Page</label>
+                                    <input type="number" min="1" max="${totalPdfPages}" value="${defaultStart}" 
+                                        class="range-start w-full bg-slate-50 border border-slate-300 rounded-lg px-3 py-1.5 text-xs text-slate-800 font-medium focus:ring-2 focus:ring-indigo-500 focus:outline-none">
+                                </div>
+                                <div>
+                                    <label class="block text-[10px] font-semibold text-slate-400 uppercase tracking-wider mb-1">End Page</label>
+                                    <input type="number" min="1" max="${totalPdfPages}" value="${defaultEnd}" 
+                                        class="range-end w-full bg-slate-50 border border-slate-300 rounded-lg px-3 py-1.5 text-xs text-slate-800 font-medium focus:ring-2 focus:ring-indigo-500 focus:outline-none">
+                                </div>
+                            </div>
+                            <button type="button" class="remove-range-btn text-slate-300 hover:text-red-500 p-2 rounded-lg transition-colors mt-4" title="Remove Range" disabled>
+                                <i class="fa-solid fa-trash-can text-xs"></i>
+                            </button>
+                        </div>
+                    </div>
+                `;
+
+                const addBtn = card.querySelector('.add-range-btn');
+                const rangesList = card.querySelector('.ranges-list');
+                const removeSectionBtn = card.querySelector('.remove-section-btn');
+
+                removeSectionBtn.addEventListener('click', () => {
+                    card.remove();
+                    updateSectionIndices();
+                });
+
+                addBtn.addEventListener('click', () => {
+                    const newRow = document.createElement('div');
+                    newRow.className = "range-row flex items-center gap-3 bg-white p-2.5 rounded-lg border border-slate-200/60 shadow-2xs";
+                    newRow.innerHTML = `
+                        <div class="flex-1 grid grid-cols-2 gap-3">
+                            <div>
+                                <label class="block text-[10px] font-semibold text-slate-400 uppercase tracking-wider mb-1">Start Page</label>
+                                <input type="number" min="1" max="${totalPdfPages}" value="1" 
+                                    class="range-start w-full bg-slate-50 border border-slate-300 rounded-lg px-3 py-1.5 text-xs text-slate-800 font-medium focus:ring-2 focus:ring-indigo-500 focus:outline-none">
+                            </div>
+                            <div>
+                                <label class="block text-[10px] font-semibold text-slate-400 uppercase tracking-wider mb-1">End Page</label>
+                                <input type="number" min="1" max="${totalPdfPages}" value="1" 
+                                    class="range-end w-full bg-slate-50 border border-slate-300 rounded-lg px-3 py-1.5 text-xs text-slate-800 font-medium focus:ring-2 focus:ring-indigo-500 focus:outline-none">
+                            </div>
+                        </div>
+                        <button type="button" class="remove-range-btn text-slate-400 hover:text-red-500 p-2 rounded-lg transition-colors mt-4" title="Remove Range">
+                            <i class="fa-solid fa-trash-can text-xs"></i>
+                        </button>
+                    `;
+                    rangesList.appendChild(newRow);
+                    updateRemoveButtons(rangesList);
+                });
+
+                rangesList.addEventListener('click', (e) => {
+                    const removeBtn = e.target.closest('.remove-range-btn');
+                    if (removeBtn && !removeBtn.disabled) {
+                        removeBtn.closest('.range-row').remove();
+                        updateRemoveButtons(rangesList);
+                    }
+                });
+
+                sectionsContainer.appendChild(card);
+            });
+        }
+
+        function updateSectionIndices() {
+            const cards = sectionsContainer.querySelectorAll('.section-card');
+            cards.forEach((card, idx) => {
+                const badge = card.querySelector('span.font-mono');
+                if (badge) badge.textContent = `File #${idx + 1}`;
+            });
+        }
+
+        function updateRemoveButtons(rangesList) {
+            const rows = rangesList.querySelectorAll('.range-row');
+            rows.forEach((row) => {
+                const btn = row.querySelector('.remove-range-btn');
+                if (rows.length === 1) {
+                    btn.disabled = true;
+                    btn.classList.add('text-slate-300', 'cursor-not-allowed');
+                    btn.classList.remove('text-slate-400', 'hover:text-red-500');
+                } else {
+                    btn.disabled = false;
+                    btn.classList.remove('text-slate-300', 'cursor-not-allowed');
+                    btn.classList.add('text-slate-400', 'hover:text-red-500');
+                }
+            });
+        }
+
+        addSectionBtn.addEventListener('click', () => {
+            if (totalPdfPages <= 0) return;
+            const cards = sectionsContainer.querySelectorAll('.section-card');
+            const newIndex = cards.length + 1;
+            const padNum = String(newIndex).padStart(2, '0');
+
+            const card = document.createElement('div');
+            card.className = "bg-slate-50/80 rounded-xl p-4 border border-slate-200/80 hover:border-indigo-200 transition-colors flex flex-col gap-3 section-card";
+            card.innerHTML = `
+                <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                    <div class="flex items-center gap-2 flex-1">
+                        <span class="text-xs font-bold text-indigo-700 font-mono bg-indigo-50 px-2.5 py-1 rounded border border-indigo-100 shrink-0">File #${newIndex}</span>
+                        <input type="text" value="${padNum}_new_section" placeholder="Enter file name" 
+                            class="section-name-input flex-1 bg-white border border-slate-300 rounded-lg px-3 py-1.5 text-xs font-semibold text-slate-800 focus:ring-2 focus:ring-indigo-500 focus:outline-none">
+                    </div>
+                    <div class="flex items-center gap-2">
+                        <button type="button" class="add-range-btn text-xs bg-indigo-50 hover:bg-indigo-100 text-indigo-700 font-medium px-3 py-1.5 rounded-lg transition-colors flex items-center gap-1.5">
+                            <i class="fa-solid fa-plus text-[10px]"></i> Add Interval
+                        </button>
+                        <button type="button" class="remove-section-btn text-slate-400 hover:text-red-500 bg-white border border-slate-200 p-1.5 rounded-lg transition-colors" title="Delete File Section">
+                            <i class="fa-solid fa-trash-can text-xs"></i>
+                        </button>
+                    </div>
+                </div>
+                <div class="ranges-list space-y-2 pt-2 border-t border-slate-200/60">
+                    <div class="range-row flex items-center gap-3 bg-white p-2.5 rounded-lg border border-slate-200/60 shadow-2xs">
+                        <div class="flex-1 grid grid-cols-2 gap-3">
+                            <div>
+                                <label class="block text-[10px] font-semibold text-slate-400 uppercase tracking-wider mb-1">Start Page</label>
+                                <input type="number" min="1" max="${totalPdfPages}" value="1" 
+                                    class="range-start w-full bg-slate-50 border border-slate-300 rounded-lg px-3 py-1.5 text-xs text-slate-800 font-medium focus:ring-2 focus:ring-indigo-500 focus:outline-none">
+                            </div>
+                            <div>
+                                <label class="block text-[10px] font-semibold text-slate-400 uppercase tracking-wider mb-1">End Page</label>
+                                <input type="number" min="1" max="${totalPdfPages}" value="1" 
+                                    class="range-end w-full bg-slate-50 border border-slate-300 rounded-lg px-3 py-1.5 text-xs text-slate-800 font-medium focus:ring-2 focus:ring-indigo-500 focus:outline-none">
+                            </div>
+                        </div>
+                        <button type="button" class="remove-range-btn text-slate-300 hover:text-red-500 p-2 rounded-lg transition-colors mt-4" title="Remove Range" disabled>
+                            <i class="fa-solid fa-trash-can text-xs"></i>
+                        </button>
+                    </div>
+                </div>
+            `;
+
+            const addBtn = card.querySelector('.add-range-btn');
+            const rangesList = card.querySelector('.ranges-list');
+            const removeSectionBtn = card.querySelector('.remove-section-btn');
+
+            removeSectionBtn.addEventListener('click', () => {
+                card.remove();
+                updateSectionIndices();
+            });
+
+            addBtn.addEventListener('click', () => {
+                const newRow = document.createElement('div');
+                newRow.className = "range-row flex items-center gap-3 bg-white p-2.5 rounded-lg border border-slate-200/60 shadow-2xs";
+                newRow.innerHTML = `
+                    <div class="flex-1 grid grid-cols-2 gap-3">
+                        <div>
+                            <label class="block text-[10px] font-semibold text-slate-400 uppercase tracking-wider mb-1">Start Page</label>
+                            <input type="number" min="1" max="${totalPdfPages}" value="1" 
+                                class="range-start w-full bg-slate-50 border border-slate-300 rounded-lg px-3 py-1.5 text-xs text-slate-800 font-medium focus:ring-2 focus:ring-indigo-500 focus:outline-none">
+                        </div>
+                        <div>
+                            <label class="block text-[10px] font-semibold text-slate-400 uppercase tracking-wider mb-1">End Page</label>
+                            <input type="number" min="1" max="${totalPdfPages}" value="1" 
+                                class="range-end w-full bg-slate-50 border border-slate-300 rounded-lg px-3 py-1.5 text-xs text-slate-800 font-medium focus:ring-2 focus:ring-indigo-500 focus:outline-none">
+                        </div>
+                    </div>
+                    <button type="button" class="remove-range-btn text-slate-400 hover:text-red-500 p-2 rounded-lg transition-colors mt-4" title="Remove Range">
+                        <i class="fa-solid fa-trash-can text-xs"></i>
+                    </button>
+                `;
+                rangesList.appendChild(newRow);
+                updateRemoveButtons(rangesList);
+            });
+
+            rangesList.addEventListener('click', (e) => {
+                const removeBtn = e.target.closest('.remove-range-btn');
+                if (removeBtn && !removeBtn.disabled) {
+                    removeBtn.closest('.range-row').remove();
+                    updateRemoveButtons(rangesList);
+                }
+            });
+
+            sectionsContainer.appendChild(card);
+            updateSectionIndices();
+        });
+
+        resetRangesBtn.addEventListener('click', () => {
+            if (totalPdfPages > 0) {
+                currentSectionDefinitions = [
+                    { key: "01_title", label: "01_title", desc: "Title Page" },
+                    { key: "02_prelim_pages", label: "02_prelim_pages", desc: "Declaration + Dedication" },
+                    { key: "03_content", label: "03_content", desc: "Table of Contents" },
+                    { key: "04_abstract", label: "04_abstract", desc: "Abstract" },
+                    { key: "05_chapter_1", label: "05_chapter_1", desc: "Chapter 1" },
+                    { key: "06_chapter_2", label: "06_chapter_2", desc: "Chapter 2" },
+                    { key: "07_chapter_3", label: "07_chapter_3", desc: "Chapter 3" },
+                    { key: "08_chapter_4", label: "08_chapter_4", desc: "Chapter 4" },
+                    { key: "09_chapter_5", label: "09_chapter_5", desc: "Chapter 5" },
+                    { key: "10_annexures", label: "10_annexures", desc: "Annexures" }
+                ];
+                renderSectionInputs();
+            }
+        });
+
+        autoDistributeBtn.addEventListener('click', () => {
+            if (totalPdfPages <= 0) return;
+            const cards = sectionsContainer.querySelectorAll('.section-card');
+            const chunk = Math.max(1, Math.floor(totalPdfPages / cards.length));
+            cards.forEach((card, idx) => {
+                const rangesList = card.querySelector('.ranges-list');
+                rangesList.innerHTML = '';
+
+                let start = (idx * chunk) + 1;
+                let end = Math.min(totalPdfPages, (idx + 1) * chunk);
+                if (start > totalPdfPages) start = totalPdfPages;
+                if (end > totalPdfPages) end = totalPdfPages;
+
+                const newRow = document.createElement('div');
+                newRow.className = "range-row flex items-center gap-3 bg-white p-2.5 rounded-lg border border-slate-200/60 shadow-2xs";
+                newRow.innerHTML = `
+                    <div class="flex-1 grid grid-cols-2 gap-3">
+                        <div>
+                            <label class="block text-[10px] font-semibold text-slate-400 uppercase tracking-wider mb-1">Start Page</label>
+                            <input type="number" min="1" max="${totalPdfPages}" value="${start}" 
+                                class="range-start w-full bg-slate-50 border border-slate-300 rounded-lg px-3 py-1.5 text-xs text-slate-800 font-medium focus:ring-2 focus:ring-indigo-500 focus:outline-none">
+                        </div>
+                        <div>
+                            <label class="block text-[10px] font-semibold text-slate-400 uppercase tracking-wider mb-1">End Page</label>
+                            <input type="number" min="1" max="${totalPdfPages}" value="${end}" 
+                                class="range-end w-full bg-slate-50 border border-slate-300 rounded-lg px-3 py-1.5 text-xs text-slate-800 font-medium focus:ring-2 focus:ring-indigo-500 focus:outline-none">
+                        </div>
+                    </div>
+                    <button type="button" class="remove-range-btn text-slate-300 hover:text-red-500 p-2 rounded-lg transition-colors mt-4" title="Remove Range" disabled>
+                        <i class="fa-solid fa-trash-can text-xs"></i>
+                    </button>
+                `;
+                rangesList.appendChild(newRow);
+            });
+        });
+
+        processBtn.addEventListener('click', async () => {
+            if (!loadedPdfBytes) {
+                showMessage("No PDF Uploaded", "Please upload a student thesis PDF first.");
+                return;
+            }
+
+            const sectionData = [];
+            const cards = sectionsContainer.querySelectorAll('.section-card');
+
+            if (cards.length === 0) {
+                showMessage("No Sections Configured", "Please add at least one file section before processing.");
+                return;
+            }
+
+            for (let card of cards) {
+                const nameInput = card.querySelector('.section-name-input');
+                let label = nameInput.value.trim() || "untitled_section";
+                // Sanitize file name
+                label = label.replace(/[/\\?%*:|"<>]/g, '_');
+
+                const rows = card.querySelectorAll('.range-row');
+                const intervals = [];
+
+                for (let row of rows) {
+                    const startVal = parseInt(row.querySelector('.range-start').value);
+                    const endVal = parseInt(row.querySelector('.range-end').value);
+
+                    if (isNaN(startVal) || isNaN(endVal) || startVal < 1 || endVal > totalPdfPages || startVal > endVal) {
+                        showMessage("Invalid Page Range", `Please check the range interval [${startVal} - ${endVal}] in section '${label}'. Pages must be between 1 and ${totalPdfPages}.`);
+                        return;
+                    }
+                    intervals.push({ start: startVal, end: endVal });
+                }
+                sectionData.push({ label, intervals });
+            }
+
+            progressModal.classList.remove('hidden');
+            progressBar.style.width = '10% ';
+            progressPercent.textContent = '10%';
+            modalTitle.textContent = "Processing Thesis PDF";
+            modalDesc.textContent = "Extracting and merging multi-range page intervals...";
+
+            try {
+                const zip = new JSZip();
+                const srcPdfDoc = await PDFLib.PDFDocument.load(loadedPdfBytes.slice(0));
+                const totalSections = sectionData.sectionData ? sectionData.length : sectionData.length;
+
+                for (let i = 0; i < sectionData.length; i++) {
+                    const sec = sectionData[i];
+                    const subPdfDoc = await PDFLib.PDFDocument.create();
+
+                    for (let interval of sec.intervals) {
+                        const startIndex = interval.start - 1;
+                        const endIndex = interval.end - 1;
+                        const pageIndices = [];
+                        for (let p = startIndex; p <= endIndex; p++) {
+                            pageIndices.push(p);
+                        }
+
+                        if (pageIndices.length > 0) {
+                            const copiedPages = await subPdfDoc.copyPages(srcPdfDoc, pageIndices);
+                            copiedPages.forEach(page => subPdfDoc.addPage(page));
+                        }
+                    }
+
+                    if (subPdfDoc.getPageCount() === 0) {
+                        subPdfDoc.addPage();
+                    }
+
+                    const pdfBytes = await subPdfDoc.save();
+                    
+                    // Handle duplicate file names in zip by appending index if needed
+                    let fileName = `${sec.label}.pdf`;
+                    let counter = 1;
+                    while (zip.file(fileName)) {
+                        fileName = `${sec.label}_(${counter}).pdf`;
+                        counter++;
+                    }
+
+                    zip.file(fileName, pdfBytes);
+
+                    const pct = Math.round(20 + ((i + 1) / sectionData.length) * 60);
+                    progressBar.style.width = `${pct}%`;
+                    progressPercent.textContent = `${pct}%`;
+                }
+
+                modalDesc.textContent = "Compressing chapter files into ZIP archive...";
+                progressBar.style.width = '90%';
+                progressPercent.textContent = '90%';
+
+                const zipContent = await zip.generateAsync({ type: "blob" });
+                
+                progressBar.style.width = '100%';
+                progressPercent.textContent = '100%';
+
+                setTimeout(() => {
+                    progressModal.classList.add('hidden');
+                    const baseName = originalFileName.replace(/\.[^/.]+$/, "");
+                    saveAs(zipContent, `${baseName}_split_chapters.zip`);
+                    showMessage("Success!", "Thesis chapters successfully split and downloaded as a ZIP archive.", false);
+                }, 400);
+
+            } catch (err) {
+                console.error(err);
+                progressModal.classList.add('hidden');
+                showMessage("Processing Error", `An error occurred while splitting the PDF: ${err.message || 'Please ensure the file is not corrupted or password-protected.'}`);
+            }
+        });
+    </script>
+</body>
+</html>
